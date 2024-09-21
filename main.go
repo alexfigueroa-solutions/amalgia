@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/go-github/v45/github"
 	openai "github.com/sashabaranov/go-openai"
 	"golang.org/x/oauth2"
@@ -34,18 +34,19 @@ const (
 
 // Model represents the state of the application
 type model struct {
-	choices        []os.FileInfo    // List of files and directories
-	cursor         int              // Current cursor position
-	selected       []string         // Selected files
-	directory      string           // Current directory path
+	choices        []os.FileInfo     // List of files and directories
+	cursor         int               // Current cursor position
+	selected       []string          // Selected files
+	directory      string            // Current directory path
 	readmes        map[string]string // Map of repository names to README contents
-	state          string           // Current state
-	err            error            // Error message
-	spinner        spinner.Model    // Spinner for indicating loading
-	spinnerActive  bool             // Flag to indicate if spinner is active
-	message        string           // Success or error message
-	action         string           // Current action being performed
-	generatedFiles []string         // List of generated files
+	state          string            // Current state
+	err            error             // Error message
+	spinner        spinner.Model     // Spinner for indicating loading
+	spinnerActive  bool              // Flag to indicate if spinner is active
+	message        string            // Success or error message
+	action         string            // Current action being performed
+	generatedFiles []string          // List of generated files
+	startTime      time.Time         // Start time for each operation
 }
 
 // Initialize the model
@@ -145,6 +146,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = statePerforming
 				m.spinnerActive = true
 				m.message = "Generating resume using OpenAI..."
+				m.startTime = time.Now()
 				return m, tea.Batch(m.spinner.Tick, m.generateResume)
 			case "2":
 				// Generate Cover Letter
@@ -152,6 +154,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = statePerforming
 				m.spinnerActive = true
 				m.message = "Generating cover letter using OpenAI..."
+				m.startTime = time.Now()
 				return m, tea.Batch(m.spinner.Tick, m.generateCoverLetter)
 			case "3":
 				// Fetch GitHub READMEs
@@ -159,6 +162,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = statePerforming
 				m.spinnerActive = true
 				m.message = "Fetching README files from GitHub..."
+				m.startTime = time.Now()
 				return m, tea.Batch(m.spinner.Tick, m.fetchGitHubREADMEs)
 			case "ctrl+c", "q":
 				return m, tea.Quit
@@ -176,8 +180,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg := msg.(type) {
 		case string:
 			// Success or error message
+			duration := time.Since(m.startTime)
 			m.spinnerActive = false
-			m.message = msg
+			m.message = fmt.Sprintf("%s\nOperation took: %v", msg, duration)
 			m.state = stateMainMenu
 			return m, nil
 		case error:
@@ -271,42 +276,65 @@ func remove(slice []string, item string) []string {
 	return newSlice
 }
 
-// generateResume uses OpenAI's API to generate a resume
+// generateResume uses OpenAI's Chat Completions API (GPT-4) to generate a resume
 func (m model) generateResume() tea.Msg {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
+		log.Println("OPENAI_API_KEY environment variable not set")
 		return fmt.Sprintf("OPENAI_API_KEY environment variable not set")
 	}
 
+	// Initialize OpenAI client
 	client := openai.NewClient(apiKey)
 	ctx := context.Background()
 
-	// Combine your resume, cover letter, and README contents
+	// Prepare the input data combining resume, cover letter, and README contents
 	inputData, err := prepareInputData(m)
 	if err != nil {
-		return err
+		log.Printf("Error preparing input data: %v\n", err)
+		return fmt.Errorf("Error preparing input data: %v", err)
 	}
 
-	// Create a prompt for OpenAI
-	prompt := fmt.Sprintf("Using the following data, generate a professional resume:\n\n%s", inputData)
+	log.Println("Starting resume generation using GPT-4...")
 
-	// Call OpenAI API
-	resp, err := client.CreateCompletion(ctx, openai.CompletionRequest{
-		Model:     openai.GPT3TextDavinci003,
-		Prompt:    prompt,
-		MaxTokens: 1000,
-	})
+	// Create the chat completion request for GPT-4
+	req := openai.ChatCompletionRequest{
+		Model: "gpt-4", // Ensure GPT-4 model is being used
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    "system",
+				Content: "You are a professional resume writer. You may not have all the information but dissect the project readmes and generate a professional resume anyways. I work at Talentnow for 3 years now as an associate software develpoer doing full stack work btw. You should heavily include my projects in the resume.",
+			},
+			{
+				Role:    "user",
+				Content: fmt.Sprintf("Using the following data, generate a professional resume:\n\n%s", inputData),
+			},
+		},
+		MaxTokens:   1000,
+		Temperature: 0.7, // Controls the creativity of the output
+	}
+
+	// Send the request to OpenAI's API
+	resp, err := client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return err
+		log.Printf("Error generating resume with GPT-4: %v\n", err)
+		return fmt.Errorf("Error generating resume: %v", err)
 	}
 
-	// Save the generated resume
-	err = ioutil.WriteFile("generated_resume.txt", []byte(resp.Choices[0].Text), 0644)
+	if len(resp.Choices) == 0 {
+		log.Println("No choices returned from GPT-4 for resume generation")
+		return fmt.Errorf("No response from GPT-4")
+	}
+
+	// Save the generated resume to a file
+	err = ioutil.WriteFile("generated_resume.txt", []byte(resp.Choices[0].Message.Content), 0644)
 	if err != nil {
-		return err
+		log.Printf("Error saving generated resume to file: %v\n", err)
+		return fmt.Errorf("Error saving resume: %v", err)
 	}
 
-	return "Resume generated successfully and saved to 'generated_resume.txt'"
+	log.Println("Resume generated successfully and saved to 'generated_resume.txt'")
+	return "Resume generated and saved to 'generated_resume.txt'"
 }
 
 // generateCoverLetter uses OpenAI's API to generate a cover letter
