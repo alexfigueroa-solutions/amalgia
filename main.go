@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -16,14 +18,14 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Define application states
+// Constants for application states
 const (
 	stateSelectingFiles = "selecting_files"
 	stateMainMenu       = "main_menu"
 	statePerforming     = "performing"
 )
 
-// Define actions
+// Constants for actions
 const (
 	actionGenerateResume      = "generate_resume"
 	actionGenerateCoverLetter = "generate_cover_letter"
@@ -48,13 +50,11 @@ type model struct {
 
 // Initialize the model
 func initialModel() model {
-	// Get current working directory
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Read files in the current directory
 	files, err := ioutil.ReadDir(cwd)
 	if err != nil {
 		log.Fatal(err)
@@ -62,7 +62,7 @@ func initialModel() model {
 
 	// Initialize spinner
 	sp := spinner.New()
-	sp.Spinner = spinner.Dot // Fix: Set spinner style to a predefined style (spinner.Dot)
+	sp.Spinner = spinner.Dot
 
 	return model{
 		choices:   files,
@@ -364,7 +364,9 @@ func fetchGitHubREADMEs() (map[string]string, error) {
 		return nil, fmt.Errorf("GITHUB_TOKEN environment variable not set")
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
@@ -397,8 +399,12 @@ func fetchGitHubREADMEs() (map[string]string, error) {
 
 	for _, repo := range repos {
 		// Get the README
-		readme, _, err := client.Repositories.GetReadme(ctx, *user.Login, *repo.Name, nil)
+		readme, resp, err := client.Repositories.GetReadme(ctx, *user.Login, *repo.Name, nil)
 		if err != nil {
+			if resp != nil && resp.StatusCode == http.StatusNotFound {
+				// Skip repositories without a README
+				continue
+			}
 			log.Printf("Error fetching README for %s: %v", *repo.Name, err)
 			continue
 		}
