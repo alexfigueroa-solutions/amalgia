@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/charmbracelet/bubbletea v1.1.1
 	github.com/google/go-github/v45 v45.2.0
+	github.com/sashabaranov/go-openai v1.30.3
 	golang.org/x/oauth2 v0.23.0
 )
 
@@ -18,7 +19,7 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
-	github.com/mattn/go-runewidth v0.0.15 // indirect
+	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.2 // indirect
