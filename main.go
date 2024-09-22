@@ -34,19 +34,18 @@ const (
 
 // Model represents the state of the application
 type model struct {
-	choices        []os.FileInfo     // List of files and directories
-	cursor         int               // Current cursor position
-	selected       []string          // Selected files
-	directory      string            // Current directory path
-	readmes        map[string]string // Map of repository names to README contents
-	state          string            // Current state
-	err            error             // Error message
-	spinner        spinner.Model     // Spinner for indicating loading
-	spinnerActive  bool              // Flag to indicate if spinner is active
-	message        string            // Success or error message
-	action         string            // Current action being performed
-	generatedFiles []string          // List of generated files
-	startTime      time.Time         // Start time for each operation
+	choices       []os.FileInfo     // List of files and directories
+	cursor        int               // Current cursor position
+	selected      []string          // Selected files
+	directory     string            // Current directory path
+	readmes       map[string]string // Map of repository names to README contents
+	state         string            // Current state
+	err           error             // Error message
+	spinner       spinner.Model     // Spinner for indicating loading
+	spinnerActive bool              // Flag to indicate if spinner is active
+	message       string            // Success or error message
+	action        string            // Current action being performed     // List of generated files
+	startTime     time.Time         // Start time for each operation
 }
 
 // Initialize the model
@@ -281,7 +280,7 @@ func (m model) generateResume() tea.Msg {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		log.Println("OPENAI_API_KEY environment variable not set")
-		return fmt.Sprintf("OPENAI_API_KEY environment variable not set")
+		return fmt.Errorf("OPENAI_API_KEY environment variable not set")
 	}
 
 	// Initialize OpenAI client
@@ -292,7 +291,7 @@ func (m model) generateResume() tea.Msg {
 	inputData, err := prepareInputData(m)
 	if err != nil {
 		log.Printf("Error preparing input data: %v\n", err)
-		return fmt.Errorf("Error preparing input data: %v", err)
+		return fmt.Errorf("error preparing input data: %v", err)
 	}
 
 	log.Println("Starting resume generation using GPT-4...")
@@ -318,19 +317,19 @@ func (m model) generateResume() tea.Msg {
 	resp, err := client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		log.Printf("Error generating resume with GPT-4: %v\n", err)
-		return fmt.Errorf("Error generating resume: %v", err)
+		return fmt.Errorf("error generating resume: %v", err)
 	}
 
 	if len(resp.Choices) == 0 {
 		log.Println("No choices returned from GPT-4 for resume generation")
-		return fmt.Errorf("No response from GPT-4")
+		return fmt.Errorf("no response from GPT-4")
 	}
 
 	// Save the generated resume to a file
 	err = ioutil.WriteFile("generated_resume.txt", []byte(resp.Choices[0].Message.Content), 0644)
 	if err != nil {
 		log.Printf("Error saving generated resume to file: %v\n", err)
-		return fmt.Errorf("Error saving resume: %v", err)
+		return fmt.Errorf("error saving resume: %v", err)
 	}
 
 	log.Println("Resume generated successfully and saved to 'generated_resume.txt'")
@@ -341,7 +340,7 @@ func (m model) generateResume() tea.Msg {
 func (m model) generateCoverLetter() tea.Msg {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		return fmt.Sprintf("OPENAI_API_KEY environment variable not set")
+		return fmt.Errorf("openai api key environment variable not set")
 	}
 
 	client := openai.NewClient(apiKey)
@@ -376,12 +375,12 @@ func (m model) generateCoverLetter() tea.Msg {
 }
 
 // fetchGitHubREADMEs fetches README files from your GitHub repositories
-func (m model) fetchGitHubREADMEs() tea.Msg {
+func (m *model) fetchGitHubREADMEs() tea.Msg {
 	readmes, err := fetchGitHubREADMEs()
 	if err != nil {
 		return err
 	}
-	m.readmes = readmes
+	m.readmes = readmes // This assignment will now be effective
 	return "GitHub README files fetched successfully and saved to 'readmes' directory"
 }
 
