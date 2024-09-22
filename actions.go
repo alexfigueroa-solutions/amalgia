@@ -1,4 +1,3 @@
-// Filename: actions.go
 package main
 
 import (
@@ -74,7 +73,6 @@ func generateResume(m *model) tea.Cmd {
 	}
 }
 
-// generateCoverLetter uses OpenAI's API to generate a cover letter
 func (m *model) generateCoverLetter() tea.Msg {
 	m.addLog("Starting cover letter generation.")
 	apiKey := os.Getenv("OPENAI_API_KEY")
