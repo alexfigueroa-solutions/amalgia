@@ -1,3 +1,4 @@
+// Filename: actions.go
 package main
 
 import (
@@ -13,9 +14,12 @@ import (
 
 // generateResume uses OpenAI's Chat Completions API (GPT-4) to generate a resume
 func (m model) generateResume() tea.Msg {
+	m.addLog("Starting resume generation.")
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		return fmt.Errorf("OPENAI_API_KEY environment variable not set")
+		errMsg := "OPENAI_API_KEY environment variable not set"
+		m.addLog(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 
 	client := openai.NewClient(apiKey)
@@ -23,7 +27,9 @@ func (m model) generateResume() tea.Msg {
 
 	inputData, err := prepareInputData(m)
 	if err != nil {
-		return fmt.Errorf("error preparing input data: %v", err)
+		errMsg := fmt.Sprintf("Error preparing input data: %v", err)
+		m.addLog(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 
 	req := openai.ChatCompletionRequest{
@@ -44,26 +50,37 @@ func (m model) generateResume() tea.Msg {
 
 	resp, err := client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return fmt.Errorf("error generating resume: %v", err)
+		errMsg := fmt.Sprintf("Error generating resume: %v", err)
+		m.addLog(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 
 	if len(resp.Choices) == 0 {
-		return fmt.Errorf("no response from GPT-4")
+		errMsg := "No response from GPT-4"
+		m.addLog(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 
 	err = os.WriteFile("generated_resume.txt", []byte(resp.Choices[0].Message.Content), 0600)
 	if err != nil {
-		return fmt.Errorf("error saving resume: %v", err)
+		errMsg := fmt.Sprintf("Error saving resume: %v", err)
+		m.addLog(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 
-	return "Resume generated and saved to 'generated_resume.txt'"
+	successMsg := "Resume generated and saved to 'generated_resume.txt'"
+	m.addLog(successMsg)
+	return successMsg
 }
 
 // generateCoverLetter uses OpenAI's API to generate a cover letter
 func (m model) generateCoverLetter() tea.Msg {
+	m.addLog("Starting cover letter generation.")
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		return fmt.Errorf("OPENAI_API_KEY environment variable not set")
+		errMsg := "OPENAI_API_KEY environment variable not set"
+		m.addLog(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 
 	client := openai.NewClient(apiKey)
@@ -71,7 +88,9 @@ func (m model) generateCoverLetter() tea.Msg {
 
 	inputData, err := prepareInputData(m)
 	if err != nil {
-		return fmt.Errorf("error preparing input data: %v", err)
+		errMsg := fmt.Sprintf("Error preparing input data: %v", err)
+		m.addLog(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 
 	req := openai.ChatCompletionRequest{
@@ -92,19 +111,27 @@ func (m model) generateCoverLetter() tea.Msg {
 
 	resp, err := client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return fmt.Errorf("error generating cover letter: %v", err)
+		errMsg := fmt.Sprintf("Error generating cover letter: %v", err)
+		m.addLog(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 
 	if len(resp.Choices) == 0 {
-		return fmt.Errorf("no response from GPT-4")
+		errMsg := "No response from GPT-4"
+		m.addLog(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 
 	err = os.WriteFile("generated_cover_letter.txt", []byte(resp.Choices[0].Message.Content), 0600)
 	if err != nil {
-		return fmt.Errorf("error saving cover letter: %v", err)
+		errMsg := fmt.Sprintf("Error saving cover letter: %v", err)
+		m.addLog(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 
-	return "Cover letter generated and saved to 'generated_cover_letter.txt'"
+	successMsg := "Cover letter generated and saved to 'generated_cover_letter.txt'"
+	m.addLog(successMsg)
+	return successMsg
 }
 
 // prepareInputData combines selected files and selected README contents
@@ -117,7 +144,9 @@ func prepareInputData(m model) (string, error) {
 		for _, file := range m.selected {
 			content, err := os.ReadFile(file)
 			if err != nil {
-				return "", fmt.Errorf("error reading file %s: %v", file, err)
+				errMsg := fmt.Sprintf("Error reading file %s: %v", file, err)
+				m.addLog(errMsg)
+				return "", fmt.Errorf(errMsg)
 			}
 			buffer.WriteString(fmt.Sprintf("File: %s\n", filepath.Base(file)))
 			buffer.Write(content)
