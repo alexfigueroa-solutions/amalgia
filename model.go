@@ -15,6 +15,7 @@ const (
 	stateSelectingFiles = "selecting_files"
 	stateMainMenu       = "main_menu"
 	statePerforming     = "performing"
+	stateSelectREADMEs  = "selecting_readmes" // New state
 )
 
 // Constants for actions
@@ -26,18 +27,20 @@ const (
 
 // Model represents the state of the application
 type model struct {
-	choices       []fs.DirEntry // Changed from []os.FileInfo to []fs.DirEntry
-	cursor        int
-	selected      []string
-	directory     string
-	readmes       map[string]string
-	state         string
-	err           error
-	spinner       spinner.Model
-	spinnerActive bool
-	message       string
-	action        string
-	startTime     time.Time
+	choices         []fs.DirEntry // Directory entries for file selection
+	cursor          int
+	selected        []string          // Selected files
+	directory       string            // Current directory
+	readmes         map[string]string // Map of README contents
+	readmeList      []string          // List of README names
+	selectedREADMEs map[string]bool   // Map to track selected READMEs
+	state           string            // Current application state
+	err             error             // Error message
+	spinner         spinner.Model     // Spinner model
+	spinnerActive   bool              // Spinner active status
+	message         string            // Message to display
+	action          string            // Current action
+	startTime       time.Time         // Action start time
 }
 
 func (m model) Init() tea.Cmd {
@@ -61,11 +64,13 @@ func initialModel() model {
 	sp.Spinner = spinner.Dot
 
 	return model{
-		choices:   files,
-		directory: cwd,
-		readmes:   make(map[string]string),
-		state:     stateSelectingFiles,
-		spinner:   sp,
+		choices:         files,
+		directory:       cwd,
+		readmes:         make(map[string]string),
+		readmeList:      []string{},
+		selectedREADMEs: make(map[string]bool),
+		state:           stateSelectingFiles,
+		spinner:         sp,
 	}
 }
 

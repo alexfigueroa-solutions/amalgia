@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -52,7 +51,7 @@ func (m model) generateResume() tea.Msg {
 		return fmt.Errorf("no response from GPT-4")
 	}
 
-	err = ioutil.WriteFile("generated_resume.txt", []byte(resp.Choices[0].Message.Content), 0644)
+	err = os.WriteFile("generated_resume.txt", []byte(resp.Choices[0].Message.Content), 0600)
 	if err != nil {
 		return fmt.Errorf("error saving resume: %v", err)
 	}
@@ -100,7 +99,7 @@ func (m model) generateCoverLetter() tea.Msg {
 		return fmt.Errorf("no response from GPT-4")
 	}
 
-	err = ioutil.WriteFile("generated_cover_letter.txt", []byte(resp.Choices[0].Message.Content), 0644)
+	err = os.WriteFile("generated_cover_letter.txt", []byte(resp.Choices[0].Message.Content), 0600)
 	if err != nil {
 		return fmt.Errorf("error saving cover letter: %v", err)
 	}
@@ -108,7 +107,7 @@ func (m model) generateCoverLetter() tea.Msg {
 	return "Cover letter generated and saved to 'generated_cover_letter.txt'"
 }
 
-// prepareInputData combines selected files and README contents
+// prepareInputData combines selected files and selected README contents
 func prepareInputData(m model) (string, error) {
 	var buffer bytes.Buffer
 
@@ -116,7 +115,7 @@ func prepareInputData(m model) (string, error) {
 		buffer.WriteString("No resume or cover letter provided.\n\n")
 	} else {
 		for _, file := range m.selected {
-			content, err := ioutil.ReadFile(file)
+			content, err := os.ReadFile(file)
 			if err != nil {
 				return "", fmt.Errorf("error reading file %s: %v", file, err)
 			}
@@ -126,14 +125,19 @@ func prepareInputData(m model) (string, error) {
 		}
 	}
 
-	if len(m.readmes) == 0 {
-		buffer.WriteString("No GitHub README files found.\n\n")
-	} else {
-		for repoName, content := range m.readmes {
-			buffer.WriteString(fmt.Sprintf("Project: %s\n", repoName))
+	selectedReadmeCount := 0
+	for name, selected := range m.selectedREADMEs {
+		if selected {
+			selectedReadmeCount++
+			content := m.readmes[name]
+			buffer.WriteString(fmt.Sprintf("Project: %s\n", name))
 			buffer.WriteString(content)
 			buffer.WriteString("\n\n")
 		}
+	}
+
+	if selectedReadmeCount == 0 {
+		buffer.WriteString("No GitHub README files selected.\n\n")
 	}
 
 	return buffer.String(), nil

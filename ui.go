@@ -2,29 +2,13 @@ package main
 
 import (
 	"fmt"
-	"os" // Updated import
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 )
-
-// Assuming you have defined your model and other necessary types elsewhere
-// For example:
-// type model struct {
-//     state          stateType
-//     directory      string
-//     choices        []fs.DirEntry
-//     cursor         int
-//     selected       []string
-//     message        string
-//     err            error
-//     spinner        spinner.Model
-//     spinnerActive  bool
-//     action         actionType
-//     startTime      time.Time
-// }
 
 // View renders the UI based on the current state
 func (m model) View() string {
@@ -45,6 +29,7 @@ func (m model) View() string {
 			}
 			s += fmt.Sprintf("%s %s %s\n", cursor, selected, file.Name())
 		}
+		s += "\n" + m.message
 	case stateMainMenu:
 		s += "Files Imported:\n"
 		if len(m.selected) == 0 {
@@ -65,6 +50,21 @@ func (m model) View() string {
 		} else {
 			s += fmt.Sprintf("\n%s", m.message)
 		}
+	case stateSelectREADMEs:
+		s += "Select the READMEs to include in your resume/cover letter:\n"
+		s += "Use arrow keys to navigate, space to select/deselect, enter to confirm selection.\n\n"
+		for i, name := range m.readmeList {
+			cursor := " "
+			if m.cursor == i {
+				cursor = ">"
+			}
+			selected := " "
+			if m.selectedREADMEs[name] {
+				selected = "[x]"
+			}
+			s += fmt.Sprintf("%s %s %s\n", cursor, selected, name)
+		}
+		s += "\n" + m.message
 	}
 
 	if m.err != nil {
@@ -107,17 +107,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "enter":
 				m.state = stateMainMenu
+				m.cursor = 0
 				m.message = "Proceeding to main menu."
 			case "backspace":
 				parentDir := filepath.Dir(m.directory)
 				if parentDir != m.directory {
-					// Use os.ReadDir instead of ioutil.ReadDir
 					newFiles, err := os.ReadDir(parentDir)
 					if err != nil {
 						m.err = err
 						return m, nil
 					}
-					m.choices = newFiles // Now types match: []fs.DirEntry
+					m.choices = newFiles
 					m.directory = parentDir
 					m.cursor = 0
 					m.message = ""
@@ -164,17 +164,55 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
 		case string:
-			duration := time.Since(m.startTime)
-			m.spinnerActive = false
-			m.message = fmt.Sprintf("%s\nOperation took: %v", msg, duration)
-			m.state = stateMainMenu
-			return m, nil
+			if m.action == actionFetchREADMEs {
+				// Transition to README selection
+				m.spinnerActive = false
+				m.state = stateSelectREADMEs
+				m.cursor = 0
+				m.message = ""
+				return m, nil
+			} else {
+				duration := time.Since(m.startTime)
+				m.spinnerActive = false
+				m.message = fmt.Sprintf("%s\nOperation took: %v", msg, duration)
+				m.state = stateMainMenu
+				return m, nil
+			}
 		case error:
 			m.spinnerActive = false
 			m.err = msg
 			m.message = fmt.Sprintf("Error: %v", msg)
 			m.state = stateMainMenu
 			return m, nil
+		}
+
+	case stateSelectREADMEs:
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "up":
+				if m.cursor > 0 {
+					m.cursor--
+				}
+			case "down":
+				if m.cursor < len(m.readmeList)-1 {
+					m.cursor++
+				}
+			case "space":
+				name := m.readmeList[m.cursor]
+				m.selectedREADMEs[name] = !m.selectedREADMEs[name]
+				if m.selectedREADMEs[name] {
+					m.message = fmt.Sprintf("Selected: %s", name)
+				} else {
+					m.message = fmt.Sprintf("Deselected: %s", name)
+				}
+			case "enter":
+				m.state = stateMainMenu
+				m.cursor = 0
+				m.message = "Proceeding to main menu."
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			}
 		}
 	}
 
