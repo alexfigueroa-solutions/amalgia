@@ -26,6 +26,7 @@ const (
 	actionGenerateResume      = "generate_resume"
 	actionGenerateCoverLetter = "generate_cover_letter"
 	actionFetchREADMEs        = "fetch_readmes"
+	actionChatWithProfile     = "chat_with_profile" // New action
 )
 
 // Styles using lipgloss
@@ -66,7 +67,9 @@ type model struct {
 	fetchedCount    int               // Number of fetched READMEs
 	totalRepos      int
 	failedCount     int
-	program         *tea.Program // Reference to the Bubble Tea program
+	program         *tea.Program
+	chatHistory     []string // Stores the chat messages
+	chatInput       string   // Stores the current user input
 }
 
 // Init is the first method that gets called. It sets up the model.
@@ -106,7 +109,9 @@ func initialModel(p *tea.Program) *model {
 		progress:        pr,
 		logs:            []string{},
 		logLimit:        100, // Adjust as needed
-		program:         p,   // Set the program reference here
+		program:         p,
+		chatHistory:     []string{},
+		chatInput:       "",
 	}
 }
 
