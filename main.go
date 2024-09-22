@@ -301,6 +301,7 @@ func (m model) generateResume() tea.Msg {
 }
 
 // generateCoverLetter uses OpenAI's API to generate a cover letter
+// generateCoverLetter uses OpenAI's API to generate a cover letter
 func (m model) generateCoverLetter() tea.Msg {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
@@ -315,18 +316,32 @@ func (m model) generateCoverLetter() tea.Msg {
 		return fmt.Errorf("error preparing input data: %v", err)
 	}
 
-	prompt := fmt.Sprintf("Using the following data, generate a professional cover letter:\n\n%s", inputData)
+	req := openai.ChatCompletionRequest{
+		Model: "gpt-4",
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    "system",
+				Content: "You are a professional cover letter writer. Generate a compelling cover letter based on the provided information. Tailor the letter to highlight the candidate's skills and experiences that are most relevant to a software development position.",
+			},
+			{
+				Role:    "user",
+				Content: fmt.Sprintf("Using the following data, generate a professional cover letter:\n\n%s", inputData),
+			},
+		},
+		MaxTokens:   1000,
+		Temperature: 0.7,
+	}
 
-	resp, err := client.CreateCompletion(ctx, openai.CompletionRequest{
-		Model:     openai.GPT3TextDavinci003,
-		Prompt:    prompt,
-		MaxTokens: 1000,
-	})
+	resp, err := client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return fmt.Errorf("error generating cover letter: %v", err)
 	}
 
-	err = ioutil.WriteFile("generated_cover_letter.txt", []byte(resp.Choices[0].Text), 0644)
+	if len(resp.Choices) == 0 {
+		return fmt.Errorf("no response from GPT-4")
+	}
+
+	err = ioutil.WriteFile("generated_cover_letter.txt", []byte(resp.Choices[0].Message.Content), 0644)
 	if err != nil {
 		return fmt.Errorf("error saving cover letter: %v", err)
 	}
