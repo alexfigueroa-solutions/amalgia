@@ -16,6 +16,7 @@ const (
 	stateMainMenu       = "main_menu"
 	statePerforming     = "performing"
 	stateSelectREADMEs  = "selecting_readmes" // New state
+	stateViewingLogs    = "viewing_logs"      // New state
 )
 
 // Constants for actions
@@ -41,10 +42,25 @@ type model struct {
 	message         string            // Message to display
 	action          string            // Current action
 	startTime       time.Time         // Action start time
+	// Inside the model struct, add the following fields:
+	logs         []string // Slice to hold recent log messages
+	logLimit     int      // Maximum number of log messages to keep
+	fetchedCount int      // Number of fetched READMEs
+	totalRepos   int
+	failedCount  int
 }
 
 func (m model) Init() tea.Cmd {
 	return nil
+}
+
+// Add the following method to the model struct
+func (m *model) addLog(msg string) {
+	if len(m.logs) >= m.logLimit {
+		m.logs = m.logs[1:]
+	}
+	m.logs = append(m.logs, msg)
+	logger.Println(msg) // Also write to logger
 }
 
 // Initialize the model
@@ -63,6 +79,7 @@ func initialModel() model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 
+	// Inside the initialModel function, initialize the log fields:
 	return model{
 		choices:         files,
 		directory:       cwd,
@@ -71,7 +88,10 @@ func initialModel() model {
 		selectedREADMEs: make(map[string]bool),
 		state:           stateSelectingFiles,
 		spinner:         sp,
+		logs:            []string{},
+		logLimit:        100, // Adjust as needed
 	}
+
 }
 
 // Helper functions
