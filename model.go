@@ -50,7 +50,7 @@ type model struct {
 	failedCount  int
 }
 
-func (m model) Init() tea.Cmd {
+func (m *model) Init() tea.Cmd {
 	return nil
 }
 
@@ -64,7 +64,7 @@ func (m *model) addLog(msg string) {
 }
 
 // Initialize the model
-func initialModel() model {
+func initialModel() *model {
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
@@ -79,8 +79,7 @@ func initialModel() model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 
-	// Inside the initialModel function, initialize the log fields:
-	return model{
+	return &model{
 		choices:         files,
 		directory:       cwd,
 		readmes:         make(map[string]string),
@@ -91,7 +90,6 @@ func initialModel() model {
 		logs:            []string{},
 		logLimit:        100, // Adjust as needed
 	}
-
 }
 
 // Helper functions
