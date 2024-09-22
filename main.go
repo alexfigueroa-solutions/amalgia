@@ -24,8 +24,13 @@ func main() {
 		}
 	}
 
-	// Initialize and run the Bubble Tea program
-	p := tea.NewProgram(initialModel())
+	// Create a new Bubble Tea program and pass it to the model
+	var p *tea.Program
+	m := initialModel(p)
+	p = tea.NewProgram(m)
+	m.program = p // Now set the program in the model
+
+	// Run the Bubble Tea program
 	if _, err := p.Run(); err != nil {
 		logger.Fatalf("Error running program: %v", err)
 	}

@@ -6,8 +6,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Constants for application states
@@ -15,8 +17,8 @@ const (
 	stateSelectingFiles = "selecting_files"
 	stateMainMenu       = "main_menu"
 	statePerforming     = "performing"
-	stateSelectREADMEs  = "selecting_readmes" // New state
-	stateViewingLogs    = "viewing_logs"      // New state
+	stateSelectREADMEs  = "selecting_readmes"
+	stateViewingLogs    = "viewing_logs"
 )
 
 // Constants for actions
@@ -24,6 +26,21 @@ const (
 	actionGenerateResume      = "generate_resume"
 	actionGenerateCoverLetter = "generate_cover_letter"
 	actionFetchREADMEs        = "fetch_readmes"
+)
+
+// Styles using lipgloss
+var (
+	titleStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00CED1"))
+	menuStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA500"))
+	selectedStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF4500"))
+	normalStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
+	logTitleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFA07A"))
+	logStyle         = lipgloss.NewStyle().PaddingLeft(2)
+	messageStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00"))
+	errorStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
+	statusBarStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#333333")).Foreground(lipgloss.Color("#FFFFFF"))
+	spinnerStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00"))
+	progressBarStyle = progress.WithScaledGradient("#FF7F50", "#FF6347")
 )
 
 // Model represents the state of the application
@@ -39,32 +56,27 @@ type model struct {
 	err             error             // Error message
 	spinner         spinner.Model     // Spinner model
 	spinnerActive   bool              // Spinner active status
+	progress        progress.Model    // Progress bar model
+	progressActive  bool              // Progress bar active status
 	message         string            // Message to display
 	action          string            // Current action
 	startTime       time.Time         // Action start time
-	// Inside the model struct, add the following fields:
-	logs         []string // Slice to hold recent log messages
-	logLimit     int      // Maximum number of log messages to keep
-	fetchedCount int      // Number of fetched READMEs
-	totalRepos   int
-	failedCount  int
+	logs            []string          // Slice to hold recent log messages
+	logLimit        int               // Maximum number of log messages to keep
+	fetchedCount    int               // Number of fetched READMEs
+	totalRepos      int
+	failedCount     int
+	program         *tea.Program // Reference to the Bubble Tea program
 }
 
+// Init is the first method that gets called. It sets up the model.
 func (m *model) Init() tea.Cmd {
+	// Return any initial commands to run
 	return nil
 }
 
-// Add the following method to the model struct
-func (m *model) addLog(msg string) {
-	if len(m.logs) >= m.logLimit {
-		m.logs = m.logs[1:]
-	}
-	m.logs = append(m.logs, msg)
-	logger.Println(msg) // Also write to logger
-}
-
 // Initialize the model
-func initialModel() *model {
+func initialModel(p *tea.Program) *model {
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
@@ -77,7 +89,11 @@ func initialModel() *model {
 
 	// Initialize spinner
 	sp := spinner.New()
-	sp.Spinner = spinner.Dot
+	sp.Spinner = spinner.Line
+	sp.Style = spinnerStyle
+
+	// Initialize progress bar
+	pr := progress.New(progressBarStyle)
 
 	return &model{
 		choices:         files,
@@ -87,9 +103,19 @@ func initialModel() *model {
 		selectedREADMEs: make(map[string]bool),
 		state:           stateSelectingFiles,
 		spinner:         sp,
+		progress:        pr,
 		logs:            []string{},
 		logLimit:        100, // Adjust as needed
+		program:         p,   // Set the program reference here
 	}
+}
+
+func (m *model) addLog(msg string) {
+	if len(m.logs) >= m.logLimit {
+		m.logs = m.logs[1:]
+	}
+	m.logs = append(m.logs, msg)
+	logger.Println(msg) // Also write to logger
 }
 
 // Helper functions
