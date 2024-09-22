@@ -34,18 +34,18 @@ const (
 
 // Model represents the state of the application
 type model struct {
-	choices       []os.FileInfo     // List of files and directories
-	cursor        int               // Current cursor position
-	selected      []string          // Selected files
-	directory     string            // Current directory path
-	readmes       map[string]string // Map of repository names to README contents
-	state         string            // Current state
-	err           error             // Error message
-	spinner       spinner.Model     // Spinner for indicating loading
-	spinnerActive bool              // Flag to indicate if spinner is active
-	message       string            // Success or error message
-	action        string            // Current action being performed     // List of generated files
-	startTime     time.Time         // Start time for each operation
+	choices       []os.FileInfo
+	cursor        int
+	selected      []string
+	directory     string
+	readmes       map[string]string
+	state         string
+	err           error
+	spinner       spinner.Model
+	spinnerActive bool
+	message       string
+	action        string
+	startTime     time.Time
 }
 
 // Initialize the model
@@ -96,15 +96,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.cursor++
 				}
 			case "space":
-				// Toggle selection
 				selectedFile := m.choices[m.cursor]
 				selectedPath := filepath.Join(m.directory, selectedFile.Name())
 				if contains(m.selected, selectedPath) {
-					// Deselect
 					m.selected = remove(m.selected, selectedPath)
 					m.message = fmt.Sprintf("Deselected: %s", selectedFile.Name())
 				} else {
-					// Select
 					if len(m.selected) < 2 {
 						m.selected = append(m.selected, selectedPath)
 						m.message = fmt.Sprintf("Selected: %s", selectedFile.Name())
@@ -113,11 +110,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			case "enter":
-				// Proceed to the next page even if no files are selected
 				m.state = stateMainMenu
-				m.message = "Proceeding without selecting files."
+				m.message = "Proceeding to main menu."
 			case "backspace":
-				// Navigate up a directory
 				parentDir := filepath.Dir(m.directory)
 				if parentDir != m.directory {
 					newFiles, err := ioutil.ReadDir(parentDir)
@@ -140,7 +135,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "1":
-				// Generate Resume
 				m.action = actionGenerateResume
 				m.state = statePerforming
 				m.spinnerActive = true
@@ -148,7 +142,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.startTime = time.Now()
 				return m, tea.Batch(m.spinner.Tick, m.generateResume)
 			case "2":
-				// Generate Cover Letter
 				m.action = actionGenerateCoverLetter
 				m.state = statePerforming
 				m.spinnerActive = true
@@ -156,7 +149,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.startTime = time.Now()
 				return m, tea.Batch(m.spinner.Tick, m.generateCoverLetter)
 			case "3":
-				// Fetch GitHub READMEs
 				m.action = actionFetchREADMEs
 				m.state = statePerforming
 				m.spinnerActive = true
@@ -169,16 +161,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case statePerforming:
-		// Update spinner
-		if m.spinnerActive {
+		switch msg := msg.(type) {
+		case spinner.TickMsg:
+			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
-		}
-
-		// Handle messages from actions
-		switch msg := msg.(type) {
 		case string:
-			// Success or error message
 			duration := time.Since(m.startTime)
 			m.spinnerActive = false
 			m.message = fmt.Sprintf("%s\nOperation took: %v", msg, duration)
@@ -187,18 +175,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case error:
 			m.spinnerActive = false
 			m.err = msg
+			m.message = fmt.Sprintf("Error: %v", msg)
 			m.state = stateMainMenu
 			return m, nil
 		}
 	}
 
-	// Update spinner regardless of state
-	if m.spinnerActive {
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
-	}
-
-	return m, nil
+	return m, cmd
 }
 
 // View renders the UI based on the current state
@@ -210,16 +193,13 @@ func (m model) View() string {
 		s += fmt.Sprintf("Current Directory: %s\n", m.directory)
 		s += "Use arrow keys to navigate, space to select files, enter to confirm selection, backspace to go up a directory\n\n"
 		for i, file := range m.choices {
-			cursor := " " // no cursor
+			cursor := " "
 			if m.cursor == i {
-				cursor = ">" // cursor pointing at this choice
+				cursor = ">"
 			}
 			selected := " "
-			for _, sel := range m.selected {
-				if sel == filepath.Join(m.directory, file.Name()) {
-					selected = "[x]"
-					break
-				}
+			if contains(m.selected, filepath.Join(m.directory, file.Name())) {
+				selected = "[x]"
 			}
 			s += fmt.Sprintf("%s %s %s\n", cursor, selected, file.Name())
 		}
@@ -237,16 +217,14 @@ func (m model) View() string {
 		s += "2. Generate Cover Letter\n"
 		s += "3. Fetch GitHub READMEs\n"
 		s += "\nPress the number of the action you want to perform, or q to quit.\n"
-	default:
-		// Performing state
+	case statePerforming:
 		if m.spinnerActive {
 			s += fmt.Sprintf("\n%s %s", m.spinner.View(), m.message)
-		} else if m.message != "" {
-			s += fmt.Sprintf("\n\n%s", m.message)
+		} else {
+			s += fmt.Sprintf("\n%s", m.message)
 		}
 	}
 
-	// Display error message if any
 	if m.err != nil {
 		s += fmt.Sprintf("\n\nError: %v\n", m.err)
 	}
@@ -254,7 +232,7 @@ func (m model) View() string {
 	return s
 }
 
-// Helper function to check if a slice contains a string
+// Helper functions
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
@@ -264,7 +242,6 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// Helper function to remove a string from a slice
 func remove(slice []string, item string) []string {
 	newSlice := []string{}
 	for _, s := range slice {
@@ -279,30 +256,23 @@ func remove(slice []string, item string) []string {
 func (m model) generateResume() tea.Msg {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		log.Println("OPENAI_API_KEY environment variable not set")
 		return fmt.Errorf("OPENAI_API_KEY environment variable not set")
 	}
 
-	// Initialize OpenAI client
 	client := openai.NewClient(apiKey)
 	ctx := context.Background()
 
-	// Prepare the input data combining resume, cover letter, and README contents
 	inputData, err := prepareInputData(m)
 	if err != nil {
-		log.Printf("Error preparing input data: %v\n", err)
 		return fmt.Errorf("error preparing input data: %v", err)
 	}
 
-	log.Println("Starting resume generation using GPT-4...")
-
-	// Create the chat completion request for GPT-4
 	req := openai.ChatCompletionRequest{
-		Model: "gpt-4", // Ensure GPT-4 model is being used
+		Model: "gpt-4",
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    "system",
-				Content: "You are a professional resume writer. You may not have all the information but dissect the project readmes and generate a professional resume anyways. I work at Talentnow for 3 years now as an associate software develpoer doing full stack work btw. You should heavily include my projects in the resume.",
+				Content: "You are a professional resume writer. You may not have all the information but dissect the project readmes and generate a professional resume anyways. I work at company_name for 3 years now as an associate software develpoer doing full stack work btw. You should heavily include my projects in the resume.",
 			},
 			{
 				Role:    "user",
@@ -310,29 +280,23 @@ func (m model) generateResume() tea.Msg {
 			},
 		},
 		MaxTokens:   1000,
-		Temperature: 0.7, // Controls the creativity of the output
+		Temperature: 0.7,
 	}
 
-	// Send the request to OpenAI's API
 	resp, err := client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		log.Printf("Error generating resume with GPT-4: %v\n", err)
 		return fmt.Errorf("error generating resume: %v", err)
 	}
 
 	if len(resp.Choices) == 0 {
-		log.Println("No choices returned from GPT-4 for resume generation")
 		return fmt.Errorf("no response from GPT-4")
 	}
 
-	// Save the generated resume to a file
 	err = ioutil.WriteFile("generated_resume.txt", []byte(resp.Choices[0].Message.Content), 0644)
 	if err != nil {
-		log.Printf("Error saving generated resume to file: %v\n", err)
 		return fmt.Errorf("error saving resume: %v", err)
 	}
 
-	log.Println("Resume generated successfully and saved to 'generated_resume.txt'")
 	return "Resume generated and saved to 'generated_resume.txt'"
 }
 
@@ -340,96 +304,74 @@ func (m model) generateResume() tea.Msg {
 func (m model) generateCoverLetter() tea.Msg {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		return fmt.Errorf("openai api key environment variable not set")
+		return fmt.Errorf("OPENAI_API_KEY environment variable not set")
 	}
 
 	client := openai.NewClient(apiKey)
 	ctx := context.Background()
 
-	// Combine your resume, cover letter, and README contents
 	inputData, err := prepareInputData(m)
 	if err != nil {
-		return err
+		return fmt.Errorf("error preparing input data: %v", err)
 	}
 
-	// Create a prompt for OpenAI
 	prompt := fmt.Sprintf("Using the following data, generate a professional cover letter:\n\n%s", inputData)
 
-	// Call OpenAI API
 	resp, err := client.CreateCompletion(ctx, openai.CompletionRequest{
 		Model:     openai.GPT3TextDavinci003,
 		Prompt:    prompt,
 		MaxTokens: 1000,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("error generating cover letter: %v", err)
 	}
 
-	// Save the generated cover letter
 	err = ioutil.WriteFile("generated_cover_letter.txt", []byte(resp.Choices[0].Text), 0644)
 	if err != nil {
-		return err
+		return fmt.Errorf("error saving cover letter: %v", err)
 	}
 
-	return "Cover letter generated successfully and saved to 'generated_cover_letter.txt'"
+	return "Cover letter generated and saved to 'generated_cover_letter.txt'"
 }
 
 // fetchGitHubREADMEs fetches README files from your GitHub repositories
 func (m *model) fetchGitHubREADMEs() tea.Msg {
-	readmes, err := fetchGitHubREADMEs()
-	if err != nil {
-		return err
-	}
-	m.readmes = readmes // This assignment will now be effective
-	return "GitHub README files fetched successfully and saved to 'readmes' directory"
-}
-
-// fetchGitHubREADMEs fetches README files from your GitHub repositories
-func fetchGitHubREADMEs() (map[string]string, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
-		return nil, fmt.Errorf("GITHUB_TOKEN environment variable not set")
+		return fmt.Errorf("GITHUB_TOKEN environment variable not set")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
-	)
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	tc := oauth2.NewClient(ctx, ts)
-
 	client := github.NewClient(tc)
 
-	// Get the authenticated user
 	user, _, err := client.Users.Get(ctx, "")
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("error getting user: %v", err)
 	}
 
-	// Prepare the directory to save READMEs
 	readmesDir := "readmes"
 	if err := os.MkdirAll(readmesDir, os.ModePerm); err != nil {
-		return nil, fmt.Errorf("failed to create directory '%s': %v", readmesDir, err)
+		return fmt.Errorf("failed to create directory '%s': %v", readmesDir, err)
 	}
 
-	// List repositories
 	repos, _, err := client.Repositories.List(ctx, "", &github.RepositoryListOptions{
 		Visibility:  "all",
 		Affiliation: "owner",
 	})
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("error listing repositories: %v", err)
 	}
 
 	readmeContents := make(map[string]string)
 
 	for _, repo := range repos {
-		// Get the README
 		readme, resp, err := client.Repositories.GetReadme(ctx, *user.Login, *repo.Name, nil)
 		if err != nil {
 			if resp != nil && resp.StatusCode == http.StatusNotFound {
-				// Skip repositories without a README
 				continue
 			}
 			log.Printf("Error fetching README for %s: %v", *repo.Name, err)
@@ -442,7 +384,6 @@ func fetchGitHubREADMEs() (map[string]string, error) {
 			continue
 		}
 
-		// Save the README content to a file
 		filename := filepath.Join(readmesDir, fmt.Sprintf("%s_README.md", *repo.Name))
 		err = ioutil.WriteFile(filename, []byte(content), 0644)
 		if err != nil {
@@ -450,25 +391,24 @@ func fetchGitHubREADMEs() (map[string]string, error) {
 			continue
 		}
 
-		// Store the content in the map
 		readmeContents[*repo.Name] = content
 	}
 
-	return readmeContents, nil
+	m.readmes = readmeContents
+	return fmt.Sprintf("Fetched and saved README files for %d repositories", len(readmeContents))
 }
 
 // prepareInputData combines selected files and README contents
 func prepareInputData(m model) (string, error) {
 	var buffer bytes.Buffer
 
-	// Add selected file contents (if any)
 	if len(m.selected) == 0 {
 		buffer.WriteString("No resume or cover letter provided.\n\n")
 	} else {
 		for _, file := range m.selected {
 			content, err := ioutil.ReadFile(file)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("error reading file %s: %v", file, err)
 			}
 			buffer.WriteString(fmt.Sprintf("File: %s\n", filepath.Base(file)))
 			buffer.Write(content)
@@ -476,7 +416,6 @@ func prepareInputData(m model) (string, error) {
 		}
 	}
 
-	// Add README contents (if any)
 	if len(m.readmes) == 0 {
 		buffer.WriteString("No GitHub README files found.\n\n")
 	} else {
