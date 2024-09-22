@@ -12,69 +12,70 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-// generateResume uses OpenAI's Chat Completions API (GPT-4) to generate a resume
-func (m model) generateResume() tea.Msg {
-	m.addLog("Starting resume generation.")
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		errMsg := "OPENAI_API_KEY environment variable not set"
-		m.addLog(errMsg)
-		return fmt.Errorf(errMsg)
-	}
+func generateResume(m *model) tea.Cmd {
+	return func() tea.Msg {
+		m.addLog("Starting resume generation.")
+		apiKey := os.Getenv("OPENAI_API_KEY")
+		if apiKey == "" {
+			errMsg := "OPENAI_API_KEY environment variable not set"
+			m.addLog(errMsg)
+			return fmt.Errorf(errMsg)
+		}
 
-	client := openai.NewClient(apiKey)
-	ctx := context.Background()
+		client := openai.NewClient(apiKey)
+		ctx := context.Background()
 
-	inputData, err := prepareInputData(m)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error preparing input data: %v", err)
-		m.addLog(errMsg)
-		return fmt.Errorf(errMsg)
-	}
+		inputData, err := prepareInputData(m)
+		if err != nil {
+			errMsg := fmt.Sprintf("Error preparing input data: %v", err)
+			m.addLog(errMsg)
+			return fmt.Errorf(errMsg)
+		}
 
-	req := openai.ChatCompletionRequest{
-		Model: "gpt-4",
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    "system",
-				Content: "You are a professional resume writer. You may not have all the information but dissect the project readmes and generate a professional resume anyways. I work at company_name for 3 years now as an associate software developer doing full stack work btw. You should heavily include my projects in the resume.",
+		req := openai.ChatCompletionRequest{
+			Model: "gpt-4",
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    "system",
+					Content: "You are a professional resume writer. You will not have all the context you need, but do the best you can use the context of the readmes and project to extrapolate and write good detailed prject sections. Make sure its structured like a resume and only shows the most prominent projects. Extrapolate all the other sections based on the info you have. Make sure to include the most relevant projects and skills.",
+				},
+				{
+					Role:    "user",
+					Content: fmt.Sprintf("Using the following data, generate a professional resume:\n\n%s", inputData),
+				},
 			},
-			{
-				Role:    "user",
-				Content: fmt.Sprintf("Using the following data, generate a professional resume:\n\n%s", inputData),
-			},
-		},
-		MaxTokens:   1000,
-		Temperature: 0.7,
-	}
+			MaxTokens:   1000,
+			Temperature: 0.7,
+		}
 
-	resp, err := client.CreateChatCompletion(ctx, req)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error generating resume: %v", err)
-		m.addLog(errMsg)
-		return fmt.Errorf(errMsg)
-	}
+		resp, err := client.CreateChatCompletion(ctx, req)
+		if err != nil {
+			errMsg := fmt.Sprintf("Error generating resume: %v", err)
+			m.addLog(errMsg)
+			return fmt.Errorf(errMsg)
+		}
 
-	if len(resp.Choices) == 0 {
-		errMsg := "No response from GPT-4"
-		m.addLog(errMsg)
-		return fmt.Errorf(errMsg)
-	}
+		if len(resp.Choices) == 0 {
+			errMsg := "No response from GPT-4"
+			m.addLog(errMsg)
+			return fmt.Errorf(errMsg)
+		}
 
-	err = os.WriteFile("generated_resume.txt", []byte(resp.Choices[0].Message.Content), 0600)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error saving resume: %v", err)
-		m.addLog(errMsg)
-		return fmt.Errorf(errMsg)
-	}
+		err = os.WriteFile("generated_resume.txt", []byte(resp.Choices[0].Message.Content), 0600)
+		if err != nil {
+			errMsg := fmt.Sprintf("Error saving resume: %v", err)
+			m.addLog(errMsg)
+			return fmt.Errorf(errMsg)
+		}
 
-	successMsg := "Resume generated and saved to 'generated_resume.txt'"
-	m.addLog(successMsg)
-	return successMsg
+		successMsg := "Resume generated and saved to 'generated_resume.txt'"
+		m.addLog(successMsg)
+		return successMsg
+	}
 }
 
 // generateCoverLetter uses OpenAI's API to generate a cover letter
-func (m model) generateCoverLetter() tea.Msg {
+func (m *model) generateCoverLetter() tea.Msg {
 	m.addLog("Starting cover letter generation.")
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
@@ -134,12 +135,11 @@ func (m model) generateCoverLetter() tea.Msg {
 	return successMsg
 }
 
-// prepareInputData combines selected files and selected README contents
-func prepareInputData(m model) (string, error) {
+func prepareInputData(m *model) (string, error) {
 	var buffer bytes.Buffer
 
 	if len(m.selected) == 0 {
-		buffer.WriteString("No resume or cover letter provided.\n\n")
+		buffer.WriteString("No additional files provided.\n\n")
 	} else {
 		for _, file := range m.selected {
 			content, err := os.ReadFile(file)
@@ -154,11 +154,17 @@ func prepareInputData(m model) (string, error) {
 		}
 	}
 
+	// Include selected READMEs
 	selectedReadmeCount := 0
 	for name, selected := range m.selectedREADMEs {
 		if selected {
 			selectedReadmeCount++
-			content := m.readmes[name]
+			content, ok := m.readmes[name]
+			if !ok {
+				errMsg := fmt.Sprintf("README content for %s not found", name)
+				m.addLog(errMsg)
+				return "", fmt.Errorf(errMsg)
+			}
 			buffer.WriteString(fmt.Sprintf("Project: %s\n", name))
 			buffer.WriteString(content)
 			buffer.WriteString("\n\n")
