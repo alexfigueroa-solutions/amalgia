@@ -14,7 +14,7 @@ import (
 )
 
 // View renders the UI based on the current state
-func (m model) View() string {
+func (m *model) View() string {
 	var s strings.Builder
 
 	switch m.state {
@@ -63,7 +63,7 @@ func (m model) View() string {
 			if m.cursor == i {
 				cursor = ">"
 			}
-			selected := " "
+			selected := "[ ]"
 			if m.selectedREADMEs[name] {
 				selected = "[x]"
 			}
@@ -89,7 +89,7 @@ func (m model) View() string {
 }
 
 // Update handles incoming messages and updates the model accordingly
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch m.state {
@@ -106,22 +106,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.cursor++
 				}
 			case "space":
-				selectedFile := m.choices[m.cursor]
-				selectedPath := filepath.Join(m.directory, selectedFile.Name())
-				if contains(m.selected, selectedPath) {
-					m.selected = remove(m.selected, selectedPath)
-					m.message = fmt.Sprintf("Deselected: %s", selectedFile.Name())
-					m.addLog(fmt.Sprintf("Deselected file: %s", selectedFile.Name()))
+				name := m.readmeList[m.cursor]
+				m.selectedREADMEs[name] = !m.selectedREADMEs[name]
+
+				if m.selectedREADMEs[name] {
+					m.message = fmt.Sprintf("Selected: %s", name)
+					m.addLog(fmt.Sprintf("Selected README: %s", name))
 				} else {
-					if len(m.selected) < 2 {
-						m.selected = append(m.selected, selectedPath)
-						m.message = fmt.Sprintf("Selected: %s", selectedFile.Name())
-						m.addLog(fmt.Sprintf("Selected file: %s", selectedFile.Name()))
-					} else {
-						m.message = "You can select up to 2 files."
-						m.addLog("Selection limit reached (2 files).")
-					}
+					m.message = fmt.Sprintf("Deselected: %s", name)
+					m.addLog(fmt.Sprintf("Deselected README: %s", name))
 				}
+
 			case "enter":
 				m.state = stateMainMenu
 				m.cursor = 0
@@ -164,7 +159,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.message = "Generating resume using OpenAI..."
 				m.startTime = time.Now()
 				m.addLog("Initiated resume generation.")
-				return m, tea.Batch(m.spinner.Tick, m.generateResume)
+				return m, tea.Batch(m.spinner.Tick, generateResume(m))
 			case "2":
 				m.action = actionGenerateCoverLetter
 				m.state = statePerforming
@@ -244,7 +239,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.cursor < len(m.readmeList)-1 {
 					m.cursor++
 				}
-			case "space":
+			case " ":
 				name := m.readmeList[m.cursor]
 				m.selectedREADMEs[name] = !m.selectedREADMEs[name]
 				if m.selectedREADMEs[name] {
@@ -254,21 +249,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.message = fmt.Sprintf("Deselected: %s", name)
 					m.addLog(fmt.Sprintf("Deselected README: %s", name))
 				}
+				return m, nil
 			case "enter":
 				m.state = stateMainMenu
 				m.cursor = 0
 				m.message = "Proceeding to main menu."
 				m.addLog("Returned to main menu from README selection.")
+				return m, nil
 			case "l":
 				m.state = stateViewingLogs
 				m.cursor = 0
 				m.message = ""
 				m.addLog("Opened log view from README selection.")
+				return m, nil
 			case "ctrl+c", "q":
 				m.addLog("Application terminated by user.")
 				return m, tea.Quit
 			}
 		}
+		return m, nil
 
 	case stateViewingLogs:
 		switch msg := msg.(type) {
