@@ -14,11 +14,12 @@ import (
 
 // Constants for application states
 const (
-	stateSelectingFiles = "selecting_files"
-	stateMainMenu       = "main_menu"
-	statePerforming     = "performing"
-	stateSelectREADMEs  = "selecting_readmes"
-	stateViewingLogs    = "viewing_logs"
+	stateSelectingFiles  = "selecting_files"
+	stateMainMenu        = "main_menu"
+	statePerforming      = "performing"
+	stateSelectREADMEs   = "selecting_readmes"
+	stateViewingLogs     = "viewing_logs"
+	stateChatWithProfile = "chat_with_profile" // New state
 )
 
 // Constants for actions

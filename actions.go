@@ -175,3 +175,49 @@ func prepareInputData(m *model) (string, error) {
 
 	return buffer.String(), nil
 }
+
+func (m *model) sendChatMessage() tea.Cmd {
+	userMessage := m.chatInput
+	m.chatHistory = append(m.chatHistory, "You: "+userMessage)
+	m.chatInput = "" // Clear the input after sending
+
+	return func() tea.Msg {
+		apiKey := os.Getenv("OPENAI_API_KEY")
+		if apiKey == "" {
+			errMsg := "OPENAI_API_KEY environment variable not set"
+			return fmt.Errorf(errMsg)
+		}
+
+		client := openai.NewClient(apiKey)
+		ctx := context.Background()
+
+		req := openai.ChatCompletionRequest{
+			Model: "gpt-4",
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    "system",
+					Content: "You are chatting with a user profile-based assistant.",
+				},
+				{
+					Role:    "user",
+					Content: fmt.Sprintf("User message: %s", userMessage),
+				},
+			},
+			MaxTokens:   500,
+			Temperature: 0.7,
+		}
+
+		resp, err := client.CreateChatCompletion(ctx, req)
+		if err != nil {
+			return fmt.Errorf("Error during chat: %v", err)
+		}
+
+		if len(resp.Choices) == 0 {
+			return fmt.Errorf("No response from GPT-4")
+		}
+
+		response := resp.Choices[0].Message.Content
+		m.chatHistory = append(m.chatHistory, "Assistant: "+response)
+		return nil
+	}
+}

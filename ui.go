@@ -28,6 +28,14 @@ func (m *model) View() string {
 		s.WriteString(m.viewReadmeSelection())
 	case stateViewingLogs:
 		s.WriteString(m.viewLogs())
+	case stateChatWithProfile:
+		s.WriteString("Chat with Profile:\n")
+		for _, msg := range m.chatHistory {
+			s.WriteString(msg + "\n")
+		}
+		s.WriteString("\n" + m.chatInput)
+		s.WriteString("\n\nPress Enter to send, Ctrl+C to quit.")
+
 	}
 
 	if m.err != nil && m.state != stateViewingLogs {
@@ -65,12 +73,12 @@ func (m *model) viewFileSelection() string {
 	return s.String()
 }
 
-// viewMainMenu renders the main menu screen
 func (m *model) viewMainMenu() string {
 	var s strings.Builder
 
 	s.WriteString(titleStyle.Render("\nAI-Powered Actions:\n\n"))
-	menuOptions := []string{"Generate Resume", "Generate Cover Letter", "Fetch GitHub READMEs", "View Logs", "Quit"}
+	menuOptions := []string{"Generate Resume", "Generate Cover Letter", "Fetch GitHub READMEs", "Chat with Profile", "View Logs", "Quit"}
+
 	for i, option := range menuOptions {
 		prefix := "  "
 		if m.cursor == i {
@@ -226,6 +234,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.startTime = time.Now()
 					m.addLog("Initiated resume generation.")
 					return m, tea.Batch(m.spinner.Tick, generateResume(m))
+
 				case 1: // Generate Cover Letter
 					m.action = actionGenerateCoverLetter
 					m.state = statePerforming
@@ -234,6 +243,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.startTime = time.Now()
 					m.addLog("Initiated cover letter generation.")
 					return m, tea.Batch(m.spinner.Tick, m.generateCoverLetter)
+
 				case 2: // Fetch GitHub READMEs
 					m.action = actionFetchREADMEs
 					m.state = statePerforming
@@ -243,12 +253,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.startTime = time.Now()
 					m.addLog("Initiated fetching GitHub READMEs.")
 					return m, tea.Batch(m.spinner.Tick, m.fetchGitHubREADMEs())
-				case 3: // View Logs
+
+				case 3: // Chat with Profile (This is the new block)
+					m.state = stateChatWithProfile
+					m.cursor = 0
+					m.addLog("Started chat with profile.")
+					return m, nil
+
+				case 4: // View Logs
 					m.state = stateViewingLogs
 					m.cursor = 0
 					m.message = ""
 					m.addLog("Opened log view from main menu.")
-				case 4: // Quit
+
+				case 5: // Quit
 					m.addLog("Application terminated by user.")
 					return m, tea.Quit
 				}
@@ -356,6 +374,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+c", "q":
 				m.addLog("Application terminated by user.")
 				return m, tea.Quit
+			}
+		}
+
+	case stateChatWithProfile:
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "enter":
+				return m, m.sendChatMessage() // Send the chat message
+			case "ctrl+c":
+				return m, tea.Quit
+			default:
+				// Update chat input
+				m.chatInput += msg.String()
 			}
 		}
 	}
