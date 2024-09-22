@@ -15,7 +15,7 @@ func InitializeLogger() *log.Logger {
 	}
 
 	// Create a multi-writer to write to both stderr and the log file
-	multiWriter := io.MultiWriter(os.Stderr, logFile)
+	multiWriter := io.MultiWriter(logFile)
 
 	// Create a new logger
 	logger := log.New(multiWriter, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
